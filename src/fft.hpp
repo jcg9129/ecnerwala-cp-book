@@ -52,7 +52,22 @@ template <typename dbl> struct getRoot<cplx<dbl>> {
 template <int MOD> struct primitive_root {
 	static const int value;
 };
+// 998244353 = (119 << 23) + 1 = 2^30 - 2^26 - 2^23 + 1
 template <> struct primitive_root<998244353> {
+	static const int value = 3;
+};
+// babybear prime
+template <> struct primitive_root<(15 << 27) + 1> {
+	static const int value = 31;
+};
+// koalabear prime
+template <> struct primitive_root<(127 << 24) + 1> {
+	static const int value = 3;
+};
+template <> struct primitive_root<(7 << 26) + 1> {
+	static const int value = 3;
+};
+template <> struct primitive_root<(5 << 25) + 1> {
 	static const int value = 3;
 };
 template <int MOD> struct getRoot<modnum<MOD>> {
