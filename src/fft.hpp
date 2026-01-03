@@ -76,6 +76,12 @@ template <int MOD> struct getRoot<modnum<MOD>> {
 		return power(modnum<MOD>(primitive_root<MOD>::value), (MOD-1)/k);
 	}
 };
+template <> struct getRoot<mod_goldilocks> {
+	static mod_goldilocks f(int k) {
+		assert((mod_goldilocks::MOD-1)%k == 0);
+		return power(mod_goldilocks(mod_goldilocks::PRIMITIVE_ROOT), (mod_goldilocks::MOD-1)/k);
+	}
+};
 
 template <typename num> class fft {
 	static vector<int> rev;
@@ -329,14 +335,59 @@ struct fft_mod_multiplier {
 		}
 		fft<cnum>::go(fa.begin(), n);
 		fft<cnum>::go(fb.begin(), n);
-		using ll = long long;
-		const ll m = mnum::MOD;
+		const int64_t m = mnum::MOD;
 		auto it = io;
 		for (int i = 0; i < szo; ++i, ++it) {
-			*it = mnum((ll(fa[i].x+0.5)
-						+ (ll(fa[i].y+0.5) % m << 15)
-						+ (ll(fb[i].x+0.5) % m << 15)
-						+ (ll(fb[i].y+0.5) % m << 30)) % m);
+			*it = mnum((int64_t(fa[i].x+0.5)
+						+ (int64_t(fa[i].y+0.5) % m << 15)
+						+ (int64_t(fb[i].x+0.5) % m << 15)
+						+ (int64_t(fb[i].y+0.5) % m << 30)) % m);
+		}
+	}
+
+	template <typename IterA, typename IterB, typename IterOut>
+	static void multiply(IterA ia, int sza, IterB ib, int szb, IterOut io) {
+		if (sza == 0 || szb == 0) return;
+		int s = sza + szb - 1;
+		int n = nextPow2(s);
+		multiply_circular(ia, sza, ib, szb, io, s, n);
+	}
+
+	template <typename IterA, typename IterOut>
+	static void square(IterA ia, int sza, IterOut io) {
+		multiply<IterA, IterA, IterOut>(ia, sza, ia, sza, io);
+	}
+};
+
+template <typename mnum>
+struct fft_2ntt_multiplier {
+	template <typename IterA, typename IterB, typename IterOut>
+	static void multiply_circular(IterA ia, int sza, IterB ib, int szb, IterOut io, int szo, int n) {
+		using n1 = mod_goldilocks;
+		using n2 = modnum<(15 << 27) + 1>;
+		std::vector<n1> a1, b1, o1; a1.reserve(sza); b1.reserve(szb); o1.resize(szo);
+		std::vector<n2> a2, b2, o2; a2.reserve(sza); b2.reserve(szb); o2.resize(szo);
+		{ auto it = ia; for (int i = 0; i < sza; ++i, ++it) { int v = int(*it); a1.push_back(v), a2.push_back(v); } }
+		{ auto it = ib; for (int i = 0; i < szb; ++i, ++it) { int v = int(*it); b1.push_back(v), b2.push_back(v); } }
+		fft_multiplier<n1>::multiply_circular(a1.begin(), sza, b1.begin(), szb, o1.begin(), szo, n);
+		fft_multiplier<n2>::multiply_circular(a2.begin(), sza, b2.begin(), szb, o2.begin(), szo, n);
+
+		// TODO: Could hardcode these
+		n1 inv_n2 = inv(n1(n2::MOD));
+		n2 inv_n1 = inv(n2(n1::MOD));
+		__int128_t whole = __int128_t(n1::MOD) * __int128_t(n2::MOD);
+
+		mnum m1_mod = mnum(n1::MOD);
+		mnum m2_mod = mnum(n2::MOD);
+		mnum whole_mod = m1_mod * m2_mod;
+		auto it = io;
+		for (int i = 0; i < szo; ++i, ++it) {
+			n1 v1 = o1[i] * inv_n2;
+			n2 v2 = o2[i] * inv_n1;
+			mnum o_mod = mnum(uint64_t(v1)) * m2_mod + mnum(int(v2)) * m1_mod;
+			__int128_t o_exact = __int128_t(uint64_t(v1)) * __int128_t(n2::MOD) + __int128_t(int(v2)) * __int128_t(n1::MOD);
+			if (o_exact >= whole) o_mod -= whole_mod;
+			*it = o_mod;
 		}
 	}
 
@@ -390,6 +441,9 @@ template <typename T> vector<T> fft_double_multiply(const vector<T>& a, const ve
 template <typename T> vector<T> fft_mod_multiply(const vector<T>& a, const vector<T>& b) {
 	return multiply<fft_mod_multiplier<T>, T>(a, b);
 }
+template <typename T> vector<T> fft_2ntt_multiply(const vector<T>& a, const vector<T>& b) {
+	return multiply<fft_2ntt_multiplier<T>, T>(a, b);
+}
 
 template <class multiplier, typename T> vector<T> square(const vector<T>& a) {
 	if (sz(a) == 0) return {};
@@ -406,6 +460,9 @@ template <typename T> vector<T> fft_double_square(const vector<T>& a) {
 template <typename T> vector<T> fft_mod_square(const vector<T>& a) {
 	return square<fft_mod_multiplier<T>, T>(a);
 }
+template <typename T> vector<T> fft_2ntt_square(const vector<T>& a) {
+	return square<fft_2ntt_multiplier<T>, T>(a);
+}
 
 template <class inverser, typename T> vector<T> inverse(const vector<T>& a) {
 	vector<T> r(sz(a));
@@ -420,6 +477,9 @@ template <typename T> vector<T> fft_double_inverse(const vector<T>& a) {
 }
 template <typename T> vector<T> fft_mod_inverse(const vector<T>& a) {
 	return inverse<multiply_inverser<fft_mod_multiplier<T>, T>, T>(a);
+}
+template <typename T> vector<T> fft_2ntt_inverse(const vector<T>& a) {
+	return inverse<multiply_inverser<fft_2ntt_multiplier<T>, T>, T>(a);
 }
 /* namespace fft */ }
 
@@ -773,6 +833,7 @@ struct power_series : public std::vector<T> {
 template <typename num> using power_series_fft = power_series<num, fft::fft_multiplier<num>, fft::fft_inverser<num>>;
 template <typename num, typename multiplier> using power_series_with_multiplier = power_series<num, multiplier, fft::multiply_inverser<multiplier, num>>;
 template <typename num> using power_series_fft_mod = power_series_with_multiplier<num, fft::fft_mod_multiplier<num>>;
+template <typename num> using power_series_fft_2ntt = power_series_with_multiplier<num, fft::fft_2ntt_multiplier<num>>;
 template <typename num> using power_series_fft_double = power_series_with_multiplier<num, fft::fft_double_multiplier<num>>;
 
 // TODO: Use iterator traits to deduce value type?
@@ -1047,6 +1108,7 @@ struct poly_ap_values : public std::vector<T> {
 template <typename num> using poly_ap_values_fft = poly_ap_values<num, fft::fft_multiplier<num>, fft::fft_inverser<num>>;
 template <typename num, typename multiplier> using poly_ap_values_with_multiplier = poly_ap_values<num, multiplier, fft::multiply_inverser<multiplier, num>>;
 template <typename num> using poly_ap_values_fft_mod = poly_ap_values_with_multiplier<num, fft::fft_mod_multiplier<num>>;
+template <typename num> using poly_ap_values_fft_2ntt = poly_ap_values_with_multiplier<num, fft::fft_2ntt_multiplier<num>>;
 template <typename num> using poly_ap_values_fft_double = poly_ap_values_with_multiplier<num, fft::fft_double_multiplier<num>>;
 
 /* namespace ecnerwala */ }

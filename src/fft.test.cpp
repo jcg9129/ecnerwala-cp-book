@@ -19,6 +19,16 @@ template <typename T> vector<T> multiply_slow(const vector<T>& a, const vector<T
 	return res;
 }
 
+TEST_CASE("FFT mod_goldilocks Mod", "[fft]") {
+	using num = mod_goldilocks;
+	mt19937 mt(48);
+	vector<num> a(100);
+	vector<num> b(168);
+	for (num& x : a) { x = num(mt()); }
+	for (num& x : b) { x = num(mt()); }
+	REQUIRE(multiply<fft_multiplier<num>>(a,b) == multiply_slow(a, b));
+}
+
 TEST_CASE("FFT Multiply Mod", "[fft]") {
 	using num = modnum<int(1e9)+7>;
 	mt19937 mt(48);
@@ -27,6 +37,16 @@ TEST_CASE("FFT Multiply Mod", "[fft]") {
 	for (num& x : a) { x = num(mt()); }
 	for (num& x : b) { x = num(mt()); }
 	REQUIRE(multiply<fft_mod_multiplier<num>>(a,b) == multiply_slow(a, b));
+}
+
+TEST_CASE("FFT 2NTT Mod", "[fft]") {
+	using num = modnum<int(1e9)+7>;
+	mt19937 mt(48);
+	vector<num> a(100);
+	vector<num> b(168);
+	for (num& x : a) { x = num(mt()); }
+	for (num& x : b) { x = num(mt()); }
+	REQUIRE(multiply<fft_2ntt_multiplier<num>>(a,b) == multiply_slow(a, b));
 }
 
 TEST_CASE("FFT Inverse", "[fft]") {

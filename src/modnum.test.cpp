@@ -1,6 +1,30 @@
 #include "modnum.hpp"
-#include <catch2/catch_test_macros.hpp>
 #include <numeric> // Include for std::lcm and std::gcd
+#include <random>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_get_random_seed.hpp>
+
+TEST_CASE("mod_goldilocks test", "[mod_goldilocks]") {
+    std::mt19937_64 mt(Catch::getSeed());
+    for (int i = -100; i < 100; i++) {
+        for (int j = -100; j < 100; j++) {
+            mod_goldilocks a(i);
+            mod_goldilocks b(j);
+            CAPTURE(a, b);
+            REQUIRE(uint64_t((__uint128_t(uint64_t(a)) + __uint128_t(uint64_t(b))) % mod_goldilocks::MOD) == uint64_t(a+b));
+            REQUIRE(uint64_t((__uint128_t(uint64_t(a)) - __uint128_t(uint64_t(b)) + mod_goldilocks::MOD) % mod_goldilocks::MOD) == uint64_t(a-b));
+            REQUIRE(uint64_t((__uint128_t(uint64_t(a)) * __uint128_t(uint64_t(b))) % mod_goldilocks::MOD) == uint64_t(a*b));
+        }
+    }
+    for (int z = 0; z < 1000; z++) {
+        mod_goldilocks a(mt());
+        mod_goldilocks b(mt());
+        CAPTURE(a, b);
+        REQUIRE(uint64_t((__uint128_t(uint64_t(a)) + __uint128_t(uint64_t(b))) % mod_goldilocks::MOD) == uint64_t(a+b));
+        REQUIRE(uint64_t((__uint128_t(uint64_t(a)) - __uint128_t(uint64_t(b)) + mod_goldilocks::MOD) % mod_goldilocks::MOD) == uint64_t(a-b));
+        REQUIRE(uint64_t((__uint128_t(uint64_t(a)) * __uint128_t(uint64_t(b))) % mod_goldilocks::MOD) == uint64_t(a*b));
+    }
+}
 
 TEST_CASE("Mod Constraint Regression Test", "[mod_constraint]") {
     for (int a_mod = 1; a_mod <= 10; ++a_mod) {
